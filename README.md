@@ -1,2 +1,2 @@
-# async-rda
-Async Relational Database Access
+# r2da
+Reactive Relational Database Access
