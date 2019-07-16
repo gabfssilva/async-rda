@@ -4,11 +4,11 @@ import java.nio.charset.Charset
 import java.security.MessageDigest
 
 import akka.util.ByteString
-import io.github.gabfssilva.r2da.api.adapters.Registry
+import io.github.gabfssilva.r2da.client.postgressql.protocol.client.PostgresSQLClientMessage
 
 package object client {
   sealed abstract class PostgresSQLClientMessage(val messageType: PostgresSQLMessageType) {
-    def asByteString(registry: Registry): ByteString
+    def asByteString: ByteString
   }
 
   sealed trait CredentialsFormat
@@ -18,12 +18,12 @@ package object client {
     case object ClearText extends CredentialsFormat
   }
 
-  sealed abstract class Credentials(val format: CredentialsFormat) extends PostgresSQLClientMessage(PostgresSQLMessageType.Authentication)
+  sealed abstract class Credentials(val format: CredentialsFormat) extends PostgresSQLClientMessage(PostgresSQLMessageType.PasswordMessage)
 
   case class ClearTextCredentials(username: String,
                                   password: String,
                                   encoding: Charset) extends Credentials(CredentialsFormat.ClearText) {
-    override def asByteString(registry: Registry): ByteString =
+    override def asByteString: ByteString =
       ByteString
         .newBuilder
           .putByte(messageType.value.toByte)
@@ -37,7 +37,7 @@ package object client {
                             password: String,
                             encoding: Charset,
                             salt: Array[Byte]) extends Credentials(CredentialsFormat.MD5) {
-    override def asByteString(registry: Registry): ByteString = {
+    override def asByteString: ByteString = {
       val md5Digest = MessageDigest.getInstance("MD5")
       md5Digest.update(password.getBytes(encoding))
       md5Digest.update(username.getBytes(encoding))
@@ -61,5 +61,25 @@ package object client {
     }
   }
 
-  case class Query()
+  case class Query(query: String) extends PostgresSQLClientMessage(PostgresSQLMessageType.Query) {
+    override def asByteString: ByteString = {
+      ByteString
+        .newBuilder
+          .putByte(messageType.value.toByte)
+          .putByte(0)
+          .putBytes(query.getBytes())
+        .result()
+    }
+  }
+
+  case class Parse(query: Query) extends PostgresSQLClientMessage(PostgresSQLMessageType.Parse) {
+    override def asByteString: ByteString = {
+      ByteString
+        .newBuilder
+        .putByte(messageType.value.toByte)
+        .putBytes("".getBytes())
+        .putBytes(query.query.getBytes())
+        .result()
+    }
+  }
 }
